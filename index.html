@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Personal con Conocimiento e Imágenes</title>
+    <!-- Carga de Tailwind CSS para estilos modernos y responsivos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Define la fuente Inter si está disponible, de lo contrario, una fuente sans-serif genérica */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Color de fondo suave */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Alinea al inicio para permitir el scroll */
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .chat-container {
+            background-color: #ffffff;
+            border-radius: 12px; /* Esquinas más redondeadas */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Sombra más pronunciada */
+            width: 100%;
+            max-width: 700px; /* Ancho máximo para legibilidad */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Asegura que los elementos hijos se mantengan dentro del borde */
+            min-height: 600px; /* Altura mínima para la interfaz */
+        }
+        .chat-log {
+            flex-grow: 1; /* Permite que el historial de chat crezca */
+            overflow-y: auto; /* Habilita el scroll vertical */
+            padding: 20px;
+            background-color: #e2e8f0; /* Fondo ligeramente diferente para el chat */
+            border-bottom: 1px solid #cbd5e0;
+        }
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start; /* Alinea los elementos al inicio */
+        }
+        .message-bot {
+            justify-content: flex-start;
+        }
+        .message-user {
+            justify-content: flex-end;
+        }
+        .message-content {
+            padding: 12px 18px;
+            border-radius: 20px; /* Bordes redondeados para burbujas de mensaje */
+            max-width: 80%; /* Evita que las burbujas sean demasiado anchas */
+            word-wrap: break-word; /* Permite que las palabras largas se rompan */
+        }
+        .message-user .message-content {
+            background-color: #3b82f6; /* Azul para mensajes del usuario */
+            color: white;
+            border-bottom-right-radius: 5px; /* Esquina inferior derecha menos redondeada */
+        }
+        .message-bot .message-content {
+            background-color: #f7fafc; /* Blanco o gris claro para mensajes del bot */
+            color: #333;
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 5px; /* Esquina inferior izquierda menos redondeada */
+        }
+        .avatar {
+            width: 36px; /* Tamaño del avatar */
+            height: 36px;
+            border-radius: 50%;
+            background-color: #a0aec0; /* Color de fondo del avatar */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0; /* Evita que el avatar se encoja */
+        }
+        .message-user .avatar {
+            margin-left: 10px;
+        }
+        .message-bot .avatar {
+            margin-right: 10px;
+        }
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e2e8f0;
+            background-color: #ffffff;
+        }
+        textarea, input[type="text"] {
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            padding: 10px 15px;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        textarea:focus, input[type="text"]:focus {
+            border-color: #3b82f6; /* Resalta el borde al enfocar */
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        button:hover {
+            background-color: #2563eb; /* Oscurece el botón al pasar el ratón */
+            transform: translateY(-1px); /* Efecto de "levantamiento" */
+        }
+        button:active {
+            background-color: #1d4ed8;
+            transform: translateY(0);
+        }
+        .knowledge-config {
+            padding: 20px;
+            background-color: #edf2f7; /* Fondo para el área de configuración */
+            border-bottom: 1px solid #cbd5e0;
+        }
+        /* Estilos para el mensaje de información/error */
+        .info-message {
+            background-color: #dbeafe; /* Light blue background */
+            color: #1e40af; /* Dark blue text */
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            color: #555;
+            font-style: italic;
+        }
+        .generated-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="p-5 bg-blue-600 text-white text-center text-2xl font-bold rounded-t-xl">
+            Mi Chatbot Personal
+        </div>
+
+        <!-- Área de configuración del conocimiento - Aún disponible para reglas personalizadas -->
+        <div class="knowledge-config">
+            <div class="info-message" id="messageBox" style="display: none;"></div>
+            <label for="knowledgeInput" class="block text-gray-700 text-sm font-bold mb-2">
+                Define reglas personalizadas (formato: "pregunta => respuesta"):
+            </label>
+            <textarea id="knowledgeInput" class="w-full p-3 mb-4 h-24 resize-y" placeholder="Ejemplo:
+Hola => ¡Hola! ¿Cómo puedo ayudarte hoy?
+¿Cómo estás? => Estoy muy bien, ¡gracias por preguntar!"></textarea>
+            <button id="loadKnowledgeBtn" class="w-full">Cargar Reglas Personalizadas</button>
+        </div>
+
+        <!-- Historial de chat -->
+        <div id="chatLog" class="chat-log">
+            <!-- Los mensajes se añadirán aquí dinámicamente -->
+            <div class="message message-bot">
+                <div class="avatar">AI</div>
+                <div class="message-content">
+                    ¡Hola! Soy tu chatbot personal. Puedo responder preguntas, definir términos y generar imágenes.
+                    Prueba a preguntar: "¿Qué es la fotosíntesis?" o "Genera una imagen de un gato astronauta".
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de entrada de chat -->
+        <div class="input-area flex items-center space-x-3">
+            <input type="text" id="userInput" class="flex-grow" placeholder="Escribe tu mensaje aquí...">
+            <button id="sendMessageBtn">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        // Obtenemos referencias a los elementos del DOM
+        const knowledgeInput = document.getElementById('knowledgeInput');
+        const loadKnowledgeBtn = document.getElementById('loadKnowledgeBtn');
+        const chatLog = document.getElementById('chatLog');
+        const userInput = document.getElementById('userInput');
+        const sendMessageBtn = document.getElementById('sendMessageBtn');
+        const messageBox = document.getElementById('messageBox');
+
+        // Almacenará el conocimiento del bot como un mapa de pregunta-respuesta
+        let botKnowledge = {};
+        let isGenerating = false; // Bandera para evitar múltiples llamadas a la API
+
+        /**
+         * Muestra un mensaje temporal en el cuadro de mensajes.
+         * @param {string} message - El mensaje a mostrar.
+         * @param {string} type - El tipo de mensaje (ej. 'success', 'error', 'info').
+         */
+        function showMessageBox(message, type = 'info') {
+            messageBox.textContent = message;
+            messageBox.style.display = 'block';
+            if (type === 'success') {
+                messageBox.style.backgroundColor = '#d1fae5';
+                messageBox.style.color = '#065f46';
+            } else if (type === 'error') {
+                messageBox.style.backgroundColor = '#fee2e2';
+                messageBox.style.color = '#991b1b';
+            } else {
+                messageBox.style.backgroundColor = '#dbeafe';
+                messageBox.style.color = '#1e40af';
+            }
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 3000);
+        }
+
+        /**
+         * Carga el conocimiento del bot desde el textarea (reglas personalizadas).
+         * Cada línea debe tener el formato "pregunta => respuesta".
+         */
+        loadKnowledgeBtn.addEventListener('click', () => {
+            const knowledgeText = knowledgeInput.value.trim();
+            const lines = knowledgeText.split('\n').filter(line => line.trim() !== '');
+            let newKnowledge = {};
+            let errors = [];
+
+            lines.forEach((line, index) => {
+                const parts = line.split('=>').map(part => part.trim());
+                if (parts.length === 2 && parts[0] !== '' && parts[1] !== '') {
+                    newKnowledge[parts[0].toLowerCase()] = parts[1];
+                } else {
+                    errors.push(`Línea ${index + 1}: Formato incorrecto. Debe ser "pregunta => respuesta".`);
+                }
+            });
+
+            if (errors.length > 0) {
+                showMessageBox(`Errores al cargar las reglas personalizadas:\n${errors.join('\n')}`, 'error');
+            } else {
+                botKnowledge = newKnowledge;
+                showMessageBox('Reglas personalizadas cargadas exitosamente.', 'success');
+                console.log('Reglas personalizadas del bot:', botKnowledge);
+            }
+        });
+
+        /**
+         * Añade un mensaje al historial de chat.
+         * @param {string} text - El contenido del mensaje.
+         * @param {string} sender - 'user' o 'bot'.
+         * @param {string} type - 'text' o 'image' para manejar diferentes tipos de contenido.
+         */
+        function addMessageToChatLog(content, sender, type = 'text') {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender === 'user' ? 'message-user' : 'message-bot');
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.classList.add('avatar');
+            avatarDiv.textContent = sender === 'user' ? 'Tú' : 'AI';
+
+            const contentContainer = document.createElement('div');
+            contentContainer.classList.add('message-content');
+
+            if (type === 'text') {
+                contentContainer.textContent = content;
+            } else if (type === 'image') {
+                const img = document.createElement('img');
+                img.src = content; // content is the image URL (base64)
+                img.alt = 'Imagen generada por IA';
+                img.classList.add('generated-image');
+                contentContainer.appendChild(img);
+            }
+
+            if (sender === 'user') {
+                messageDiv.appendChild(contentContainer);
+                messageDiv.appendChild(avatarDiv);
+            } else {
+                messageDiv.appendChild(avatarDiv);
+                messageDiv.appendChild(contentContainer);
+            }
+
+            chatLog.appendChild(messageDiv);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        /**
+         * Llama a la API de Gemini para generar una respuesta de texto.
+         * @param {string} promptText - El prompt completo para el LLM.
+         * @param {string} responseType - 'definition' o 'general' para ajustar el prompt interno.
+         */
+        async function generateResponseFromLLM(userQuestion, responseType = 'general') {
+            console.log(`[generateResponseFromLLM] Solicitando respuesta para: "${userQuestion}" (Tipo: ${responseType})`);
+            if (isGenerating) {
+                console.log("[generateResponseFromLLM] Ya se está generando una respuesta. Ignorando solicitud.");
+                return;
+            }
+            isGenerating = true;
+
+            // Añadir un indicador de carga
+            const loadingMessage = document.createElement('div');
+            loadingMessage.classList.add('loading-indicator');
+            loadingMessage.textContent = 'La IA está pensando...';
+            chatLog.appendChild(loadingMessage);
+            chatLog.scrollTop = chatLog.scrollHeight;
+            sendMessageBtn.disabled = true;
+            userInput.disabled = true;
+
+            try {
+                let chatHistory = [];
+                let prompt = "";
+
+                if (responseType === 'definition') {
+                    prompt = `Explica qué significa "${userQuestion}" y proporciona una breve explicación de su contexto o propósito. Responde en español de forma concisa y clara. Si es un término técnico o científico, explica su función principal.`;
+                }
+                else { // responseType === 'general'
+                    prompt = `Responde a la siguiente pregunta en español de forma concisa y clara: "${userQuestion}"`;
+                }
+
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiKey = "AIzaSyDSXB6UX17AEN5zUs6Y7QIhE9dCbFkUAyM"; // La clave API se inyectará automáticamente
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                console.log("[generateResponseFromLLM] Enviando solicitud a la API con prompt:", prompt);
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Error HTTP: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log("[generateResponseFromLLM] Respuesta cruda de la API:", result);
+                let botResponse = "No pude obtener una respuesta para eso. Por favor, intenta de nuevo.";
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    botResponse = result.candidates[0].content.parts[0].text;
+                    console.log("[generateResponseFromLLM] Respuesta de la IA:", botResponse);
+                } else {
+                    console.error("[generateResponseFromLLM] La estructura de la respuesta de la API es inesperada o el contenido está vacío:", result);
+                    botResponse = "Hubo un problema al generar la respuesta (contenido vacío). Por favor, intenta más tarde.";
+                }
+                addMessageToChatLog(botResponse, 'bot', 'text');
+
+            } catch (error) {
+                console.error("[generateResponseFromLLM] Error al llamar a la API de Gemini:", error);
+                addMessageToChatLog("Lo siento, hubo un error al conectar con el conocimiento de la IA. Intenta de nuevo más tarde o revisa la consola para más detalles.", 'bot', 'text');
+            } finally {
+                // Eliminar el indicador de carga
+                if (loadingMessage && loadingMessage.parentNode) {
+                    loadingMessage.parentNode.removeChild(loadingMessage);
+                }
+                isGenerating = false;
+                sendMessageBtn.disabled = false;
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        /**
+         * Llama a la API de Imagen para generar una imagen.
+         * @param {string} promptForImage - El prompt para la generación de la imagen.
+         */
+        async function generateImage(promptForImage) {
+            console.log(`[generateImage] Solicitando imagen para: "${promptForImage}"`);
+            if (isGenerating) {
+                console.log("[generateImage] Ya se está generando una respuesta. Ignorando solicitud.");
+                return;
+            }
+            isGenerating = true;
+
+            // Añadir un indicador de carga
+            const loadingMessage = document.createElement('div');
+            loadingMessage.classList.add('loading-indicator');
+            loadingMessage.textContent = 'Generando imagen, esto puede tardar un momento...';
+            chatLog.appendChild(loadingMessage);
+            chatLog.scrollTop = chatLog.scrollHeight;
+            sendMessageBtn.disabled = true;
+            userInput.disabled = true;
+
+            try {
+                const payload = { instances: { prompt: promptForImage }, parameters: { "sampleCount": 1 } };
+                const apiKey = "AIzaSyDSXB6UX17AEN5zUs6Y7QIhE9dCbFkUAyM"; // La clave API se inyectará automáticamente
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+
+                console.log("[generateImage] Enviando solicitud de imagen a la API con prompt:", promptForImage);
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Error HTTP de Imagen API: ${response.status} - ${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log("[generateImage] Respuesta cruda de la API de Imagen:", result);
+
+                if (result.predictions && result.predictions.length > 0 && result.predictions[0].bytesBase64Encoded) {
+                    const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                    console.log("[generateImage] Imagen generada (base64):", imageUrl.substring(0, 50) + "..."); // Mostrar solo un fragmento
+                    addMessageToChatLog(imageUrl, 'bot', 'image');
+                } else {
+                    console.error("[generateImage] La estructura de la respuesta de la API de Imagen es inesperada o el contenido está vacío:", result);
+                    addMessageToChatLog("No pude generar la imagen. La respuesta de la API estaba vacía o inesperada.", 'bot', 'text');
+                }
+
+            } catch (error) {
+                console.error("[generateImage] Error al llamar a la API de Imagen:", error);
+                addMessageToChatLog("Lo siento, hubo un error al generar la imagen. Intenta de nuevo más tarde o revisa la consola.", 'bot', 'text');
+            } finally {
+                // Eliminar el indicador de carga
+                if (loadingMessage && loadingMessage.parentNode) {
+                    loadingMessage.parentNode.removeChild(loadingMessage);
+                }
+                isGenerating = false;
+                sendMessageBtn.disabled = false;
+                userInput.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        /**
+         * Obtiene la respuesta del bot. Prioriza reglas personalizadas, luego generación de imágenes,
+         * luego definiciones, y finalmente preguntas generales (todo vía LLM).
+         * @param {string} userMessage - El mensaje del usuario.
+         */
+        function getBotResponse(userMessage) {
+            const lowerCaseMessage = userMessage.toLowerCase();
+
+            // 1. Verificar si hay una regla personalizada que coincida exactamente
+            if (botKnowledge[lowerCaseMessage]) {
+                addMessageToChatLog(botKnowledge[lowerCaseMessage], 'bot', 'text');
+                return;
+            }
+
+            // 2. Verificar patrones para generación de imágenes
+            const imageMatch = lowerCaseMessage.match(/(genera una imagen de|crea una foto de|dibuja)\s+(.+)/);
+            if (imageMatch) {
+                const imagePrompt = imageMatch[2].trim();
+                generateImage(imagePrompt);
+                return;
+            }
+
+            // 3. Verificar patrones de "qué significa X", "qué es X", "define X" para usar el LLM para definición
+            const meaningMatch = lowerCaseMessage.match(/(qué significa|qué es|define)\s+(.+)/);
+            if (meaningMatch) {
+                const term = meaningMatch[2].trim();
+                generateResponseFromLLM(term, 'definition');
+                return;
+            }
+
+            // 4. Si no se encuentra ninguna coincidencia anterior, usar el LLM para una respuesta general
+            generateResponseFromLLM(userMessage, 'general');
+        }
+
+        /**
+         * Maneja el envío del mensaje del usuario.
+         */
+        sendMessageBtn.addEventListener('click', () => {
+            const message = userInput.value.trim();
+            if (message === '') return;
+
+            addMessageToChatLog(message, 'user', 'text');
+            userInput.value = '';
+
+            getBotResponse(message);
+        });
+
+        // Permite enviar el mensaje presionando Enter en el campo de texto
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                sendMessageBtn.click();
+            }
+        });
+
+        // Mensaje inicial para guiar al usuario
+        window.onload = () => {
+            showMessageBox('¡Tu chatbot ya no intentará crear guiones de video!');
+        };
+    </script>
+</body>
+</html>
+
